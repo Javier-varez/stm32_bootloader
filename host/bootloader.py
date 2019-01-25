@@ -5,6 +5,7 @@ import struct
 import math
 import time
 import checksum
+from PyQt5 import QtCore
 
 commands = {
         'setBlock' : b'\x00',
@@ -59,7 +60,6 @@ def getInfo(uart):
     return memStart, memSpace, maxDownloadSize
 
 def setBlock(uart, addr, size, data):
-    print "SetBlock addr 0x%08x, size %d" % (addr, size)
     uart.write(commands['setBlock'])
     uart.write(intToBytes(addr))
     uart.write(intToBytes(size))
@@ -68,7 +68,7 @@ def setBlock(uart, addr, size, data):
         printError(error)
         return error
     for i in range(size):
-        time.sleep(0.001)
+        time.sleep(0.0001)
         uart.write(data[i])
     C0, C1 = checksum.calculateFletcher(data)    
     uart.write(intToByte(C0))
@@ -79,28 +79,36 @@ def setBlock(uart, addr, size, data):
         return error
     return b'\x00'
 
-def loadData(uart, lma, length, data):
+def loadData(uart, lma, length, data, signal=None):
     if length == 0:
         return
     memStart, memSpace, maxDSize = getInfo(uart)
     
     nChunks = int(math.ceil(float(length) / maxDSize))
-    print "nChunks %d" % nChunks
     for i in range(nChunks):
+
+        #Obtain current chunk
         Chunk = []
         if i is not nChunks-1:
             Chunk = data[i*maxDSize : ((i+1)*maxDSize)]
         else:
             Chunk = data[i*maxDSize:]
 
+        # Send block
+        error = badChecksumError
         nMaxRetries = 5
         nRetries = 0
-
-        error = badChecksumError
         while (error == badChecksumError) and (nRetries < nMaxRetries):
-            print "Try #%d" % nRetries
             error = setBlock(uart, lma+i*maxDSize, len(Chunk), Chunk)
             nRetries = nRetries + 1
+
+        # Report progress if needed
+        if signal is not None:
+            if i != nChunks-1:
+                progress = ((i+1) * maxDSize * 100) / length
+            else:
+                progress = 100
+            signal.emit(progress)
 
 def boot(uart):
     if uart is None:

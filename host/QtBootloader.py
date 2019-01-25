@@ -122,14 +122,30 @@ class LoadThread(QtCore.QThread):
     progressSignal = QtCore.pyqtSignal(int)
     feedbackSignal = QtCore.pyqtSignal(str)
 
+    internalProgressSignal = QtCore.pyqtSignal(int)
+
     def __init__(self):
         super(LoadThread, self).__init__()
+        self.internalProgressSignal.connect(self.reportProgress)
 
     def setFileName(self, name):
         self.filename = name
 
     def setPort(self, port):
         self.port = port
+
+    def reportProgress(self, sectionProgress):
+        totalSize = 0
+        sentSize = 0
+        for i in range(len(self.sections)):
+            totalSize += self.sections[i].getSize()
+            if i < self.currentSection:
+                sentSize += self.sections[i].getSize()
+            elif i == self.currentSection:
+                sentSize += (self.sections[i].getSize() * sectionProgress) / 100
+
+        currentProgress = int((sentSize*100) / totalSize)
+        self.progressSignal.emit(currentProgress)
 
     def run(self):
         self.progressSignal.emit(0)
@@ -142,12 +158,12 @@ class LoadThread(QtCore.QThread):
             self.feedbackSignal.emit("Couldn't find port %s" % self.port)
             return
         elfHandler = ElfHandler(self.filename)
-        sections = elfHandler.getLoadableSections()
-        for i in range(len(sections)):
-            self.feedbackSignal.emit("Loading section %s" % sections[i].getName())
-            self.progressSignal.emit(100*i/len(sections))
-            data = elfHandler.getSectionData(sections[i].getName())
-            bootloader.loadData(uart, sections[i].getLMA(), sections[i].getSize(), data)
+        self.sections = elfHandler.getLoadableSections()
+        for i in range(len(self.sections)):
+            self.feedbackSignal.emit("Loading section %s" % self.sections[i].getName())
+            data = elfHandler.getSectionData(self.sections[i].getName())
+            self.currentSection = i
+            bootloader.loadData(uart, self.sections[i].getLMA(), self.sections[i].getSize(), data, self.internalProgressSignal)
         bootloader.boot(uart)
         self.progressSignal.emit(100)
         self.feedbackSignal.emit("Done!")
