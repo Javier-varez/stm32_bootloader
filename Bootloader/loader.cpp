@@ -1,9 +1,9 @@
 #include "Bootloader/loader.h"
 #include "Hw/factory.h"
 
-App::Loader::Loader(const memorySection& mem, const Hw::IUart &uart) :
+App::Loader::Loader(const std::vector<std::reference_wrapper<Hw::IMemory>>& memories, const Hw::IUart &uart) :
     uart(uart),
-    targetMemory(mem),
+    targetMemories(memories),
     cmdTable
         {
             {
@@ -19,8 +19,17 @@ App::Loader::Loader(const memorySection& mem, const Hw::IUart &uart) :
                     App::cmdContinueBoot,
                     std::bind(&App::Loader::ContinueBoot, this),
                 },
+                {
+                    App::cmdGetSections,
+                    std::bind(&App::Loader::getSections, this),
+                },
+                {
+                    App::cmdSetTargetSection,
+                    std::bind(&App::Loader::setTargetSection, this),
+                },
             }
-        }
+        },
+    selectedSection(0)
 {
 
 }
@@ -36,6 +45,11 @@ bool App::Loader::executeCommand() {
     return !done;
 }
 
+const Hw::IMemory& App::Loader::getTargetMemorySection() const {
+    return targetMemories[selectedSection].get();
+}
+
+
 template <class T>
 static std::uint16_t fletcherCRC(const T& data, std::size_t size) {
     std::uint16_t fletcher = 0x00;
@@ -44,8 +58,8 @@ static std::uint16_t fletcherCRC(const T& data, std::size_t size) {
 
     for (std::size_t i = 0; i < size; i++)
     {
-        C0 = ( C0 + data[i] ) % 255;
-        C1 = ( C1 + C0 ) % 255;
+        C0 = ( C0 + data[i] ) & 0xFF;
+        C1 = ( C1 + C0 ) & 0xFF;
     }
 
     fletcher = static_cast<std::uint16_t>((C1 << 8) + (C0 << 0));
@@ -70,11 +84,11 @@ bool App::Loader::setBlock() {
         uart.send(msgNack);
         uart.send(setBlockOverflow);
         return done;
-    } else if (start_ptr < targetMemory.addr) {
+    } else if (start_ptr < getTargetMemorySection().getBaseAddress()) {
         uart.send(msgNack);
         uart.send(setBlockStartPointerInvalid);
         return done;
-    } else if (end_ptr > (targetMemory.addr + targetMemory.length)) {
+    } else if (end_ptr > (getTargetMemorySection().getBaseAddress() + getTargetMemorySection().getSize())) {
         uart.send(msgNack);
         uart.send(setBlockMemoryLimitExceeded);
         return done;
@@ -95,8 +109,7 @@ bool App::Loader::setBlock() {
     }
 
     // Perform copy into memory
-    std::copy_n(dataBuffer.begin(), header.size,
-                reinterpret_cast<std::uint8_t*>(start_ptr));
+    getTargetMemorySection().write(start_ptr, dataBuffer.begin(), header.size);
 
     uart.send(msgAck);
     return done;
@@ -104,8 +117,8 @@ bool App::Loader::setBlock() {
 
 bool App::Loader::getInfo() {
     uart.send(msgAck);
-    uart.send(targetMemory.addr);
-    uart.send(targetMemory.length);
+    uart.send(getTargetMemorySection().getBaseAddress());
+    uart.send(getTargetMemorySection().getSize());
     uart.send(MAX_DOWNLOAD_SIZE);
     return false;
 }
@@ -116,4 +129,27 @@ bool App::Loader::ContinueBoot() {
     Hw::uCSystemTimer &timer = Hw::factory::getSystemTimer();
     timer.delay(5);
     return true;
+}
+
+bool App::Loader::getSections() {
+    uart.send(msgAck);
+    uart.send<uint32_t>(targetMemories.size());
+
+    for (std::size_t i = 0; i < targetMemories.size(); i++) {
+        uart.send(targetMemories[i].get().getBaseAddress());
+        uart.send(targetMemories[i].get().getSize());
+        uart.send(targetMemories[i].get().getType());
+    }
+    return false;
+}
+
+bool App::Loader::setTargetSection() {
+    std::uint8_t targetSection = uart.receive<std::uint8_t>();
+    if (targetSection >= targetMemories.size()) {
+        uart.send(msgNack);
+    } else {
+        uart.send(msgAck);
+        selectedSection = targetSection;
+    }
+    return false;
 }

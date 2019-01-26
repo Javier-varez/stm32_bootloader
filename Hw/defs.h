@@ -7,6 +7,8 @@
 #include "Hw/gpio.h"
 #include "Hw/uart.h"
 #include "Hw/systemtimer.h"
+#include "Hw/Device/flash.h"
+#include "Hw/Device/ram.h"
 
 namespace Hw {
 constexpr std::uint32_t HCLK = UINT32_C(16'000'000);
@@ -45,6 +47,23 @@ using Uart6 = Hw::Uart<Uart6RegBase,
                        gpioC6,
                        GpioConfig::AF8,
                        GpioConfig::AF8>;
+
+// Sector 0 is reserved for the bootloader. By not including it on the available sectors
+//   we make sure it is never erased nor written.
+// You should also enable write protection on the option bytes to make sure that the target
+//   application doesn't erase the bootloader.
+constexpr auto availableSectors = static_cast<Hw::Device::FlashSector>(
+            Hw::Device::FlashSector1 |
+            Hw::Device::FlashSector2 |
+            Hw::Device::FlashSector3 |
+            Hw::Device::FlashSector4 |
+            Hw::Device::FlashSector5 |
+            Hw::Device::FlashSector6 |
+            Hw::Device::FlashSector7);
+using uCFlash = Hw::Device::Flash<FLASH_R_BASE, FLASH_BASE, availableSectors>;
+
+// The last 120 K of SRAM are reserved for the bootloader
+using uCRam = Hw::Device::Ram<RAMDTCM_BASE, 200 * 1024>;
 }
 
 #endif // DEFS_H

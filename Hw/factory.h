@@ -7,9 +7,11 @@ namespace Hw {
     class factory
     {
     public:
-        static Uart1& getUart1();
-        static Uart6& getUart6();
-        static uCSystemTimer& getSystemTimer();
+        static Hw::IUart& getUart1();
+        static Hw::IUart& getUart6();
+        static Hw::uCSystemTimer& getSystemTimer();
+        static Hw::IMemory& getFlashMemory();
+        static Hw::IMemory& getRamMemory();
     };
 }
 

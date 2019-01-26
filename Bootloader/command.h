@@ -3,13 +3,14 @@
 
 #include <cstdint>
 #include <functional>
-#include "Hw/uart.h"
 
 namespace App {
     enum Command_t : std::uint8_t{
         cmdSetBlock,
         cmdGetInfo,
         cmdContinueBoot,
+        cmdGetSections,
+        cmdSetTargetSection,
         cmdNum
     };
 

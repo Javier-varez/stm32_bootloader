@@ -2,7 +2,6 @@
 #define LOADER_H
 
 #include "Hw/defs.h"
-#include "Bootloader/memorysection.h"
 #include "Bootloader/command.h"
 
 namespace App {
@@ -27,16 +26,21 @@ namespace App {
     class Loader
     {
     public:
-        Loader(const memorySection& mem, const Hw::IUart &uart);
+        Loader(const std::vector<std::reference_wrapper<Hw::IMemory>> &memories, const Hw::IUart &uart);
         bool executeCommand();
+        const Hw::IMemory& getTargetMemorySection() const;
     private:
         const Hw::IUart &uart;
-        const memorySection& targetMemory;
+        const std::vector<std::reference_wrapper<Hw::IMemory>> &targetMemories;
         const std::array<Command, cmdNum> cmdTable;
 
         bool setBlock();
         bool getInfo();
         bool ContinueBoot();
+        bool getSections();
+        bool setTargetSection();
+
+        std::size_t selectedSection;
 
         constexpr static std::size_t MAX_DOWNLOAD_SIZE = 1024;
         std::array<std::uint8_t, MAX_DOWNLOAD_SIZE> dataBuffer;

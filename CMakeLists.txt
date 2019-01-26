@@ -31,7 +31,6 @@ endif ()
 include_directories(
     "CMSIS/DEVICE/ST/STM32F7xx/Include"
     "CMSIS/INCLUDE"
-    "../mbedtls-2.16.0/include"
     ".")
 
 project(stm32_bootloader.elf)

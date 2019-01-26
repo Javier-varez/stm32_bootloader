@@ -2,18 +2,17 @@
 #define BOOTLOADER_H
 
 #include <cstdint>
-#include "bootloader/memorysection.h"
 #include "bootloader/loader.h"
 
 namespace App {
 class Bootloader
 {
 public:
-    Bootloader(const memorySection &mem);
+    Bootloader(const std::vector<std::reference_wrapper<Hw::IMemory>>& memories);
     bool load();
     void boot();
 private:
-    memorySection targetMemory;
+    const std::vector<std::reference_wrapper<Hw::IMemory>>& targetMemories;
     Hw::IUart &uart;
     Loader loader;
     void disablePeripherals();

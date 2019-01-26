@@ -44,6 +44,9 @@ public:
     static void reg_set(reg_type value) {
         *reinterpret_cast<volatile reg_type*>(addr) = value;
     }
+    static void reg_set(addr_type address, reg_type value) {
+        *reinterpret_cast<volatile reg_type*>(address) = value;
+    }
     static void reg_and() {
         *reinterpret_cast<volatile reg_type*>(addr) &= val;
     }
@@ -52,6 +55,9 @@ public:
     }
     static reg_type reg_get() {
         return *reinterpret_cast<volatile reg_type*>(addr);
+    }
+    static reg_type reg_get(addr_type address) {
+        return *reinterpret_cast<volatile reg_type*>(address);
     }
 };
 }

@@ -1,10 +1,10 @@
 #include "bootloader.h"
 #include "Hw/factory.h"
 
-App::Bootloader::Bootloader(const App::memorySection& mem) :
-    targetMemory(mem),
+App::Bootloader::Bootloader(const std::vector<std::reference_wrapper<Hw::IMemory>>& memories) :
+    targetMemories(memories),
     uart(Hw::factory::getUart1()),
-    loader(targetMemory, uart)
+    loader(targetMemories, uart)
 {
 
 }
@@ -23,9 +23,9 @@ void App::Bootloader::disablePeripherals() {
 void App::Bootloader::boot() {
     disablePeripherals();
 
-    Hw::uCSystemControlBlock::relocateVectorTable(targetMemory.addr);
+    Hw::uCSystemControlBlock::relocateVectorTable(loader.getTargetMemorySection().getBaseAddress());
 
     // Set Stack pointer and jump to target
     asm("ldr sp, =_estack\r\n"
-        "ldr pc, [%0, #4]\r\n" : : "r" (targetMemory.addr));
+        "ldr pc, [%0, #4]\r\n" : : "r" (loader.getTargetMemorySection().getBaseAddress()));
 }
