@@ -8,7 +8,7 @@ The bootloader uses only the upper 120K of RAM memory and only one block of Flas
 Since it currently only boots from RAM the application always needs to be transfered right after booting.
 
 Future plans:
-  * Protect the bootloader using the MMC and setting the right ARM execution level before booting.
+  * Protect the bootloader using the MPU and setting the right ARM execution level before booting.
   * Add support for TFTP over Ethernet.
   * Protect firmware binaries from being extracted by a man-in-the-middle attack.
   * Sign firmware binaries to implement Secure Boot by having the bootloader as the Root of Trust.
