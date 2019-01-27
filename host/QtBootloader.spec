@@ -1,12 +1,12 @@
 # -*- mode: python -*-
+import platform
 
 block_cipher = None
-
 
 a = Analysis(['QtBootloader.py'],
              pathex=['/Users/javier/Desktop/stm32_bootloader/host'],
              binaries=[],
-             datas=[],
+             datas=[('res/mainwindow.ui', 'res')],
              hiddenimports=[],
              hookspath=[],
              runtime_hooks=[],
@@ -19,14 +19,28 @@ pyz = PYZ(a.pure, a.zipped_data,
              cipher=block_cipher)
 exe = EXE(pyz,
           a.scripts,
-          a.binaries,
-          a.zipfiles,
-          a.datas,
           [],
+          exclude_binaries=True,
           name='QtBootloader',
           debug=False,
           bootloader_ignore_signals=False,
           strip=False,
           upx=True,
-          runtime_tmpdir=None,
-          console=True )
+          console=False )
+coll = COLLECT(exe,
+               a.binaries,
+               a.zipfiles,
+               a.datas,
+               strip=False,
+               upx=True,
+               name='QtBootloader')
+
+if platform.system() == 'Darwin':
+    app = BUNDLE(coll,
+                 name='QtBootloader.app',
+                 icon=None,
+                 bundle_identifier=None,
+                 info_plist={
+                     'NSHighResolutionCapable': 'True',
+                     'NSRequiresAquaSystemAppearance': 'False'
+                 })
