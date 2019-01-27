@@ -71,7 +71,6 @@ class MainWindow(QMainWindow):
 
     def updateAddressAndLengthFields(self):
         row = self.window.memoryList.currentRow()
-        print "row %d" % row
         if (row != -1) and (row < len(self.memories)):
             self.setAddressField(self.memories[row].getAddr())
             self.setLengthField(self.memories[row].getSize())

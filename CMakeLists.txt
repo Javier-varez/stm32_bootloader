@@ -15,7 +15,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mcpu=cortex-m7") # Set cpu version
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mfpu=fpv5-sp-d16") # Set FPU Version
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mfloat-abi=softfp") # float-abi describes floating point interface. hard can't link with soft compiled targets.
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mtune=cortex-m7") # tune for cpu
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0") # Optimize for size (same as -O2 without optimizations that impact size)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Os") # Optimize for size (same as -O2 without optimizations that impact size)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffunction-sections") # Split functions in their own section (better for --gc-sections)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdata-sections") # Split data in their own section (better for --gc-sections)
 
