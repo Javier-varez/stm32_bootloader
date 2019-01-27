@@ -9,8 +9,7 @@ namespace App {
         cmdSetBlock,
         cmdGetInfo,
         cmdContinueBoot,
-        cmdGetSections,
-        cmdSetTargetSection,
+        cmdInitializeMemory,
         cmdNum
     };
 

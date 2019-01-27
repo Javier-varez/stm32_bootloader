@@ -213,11 +213,16 @@ namespace Hw {
             }
 
             virtual bool initialize( void ) const override {
+                static bool alreadyInitialized = false;
+                if (alreadyInitialized)
+                    return true;
+
                 for (std::uint32_t i = 0; i < FlashSectorMax; i++) {
                     if (freeSectors & (1 << i)) {
                         eraseSector(i);
                     }
                 }
+                alreadyInitialized = true;
                 return true;
             }
 
@@ -258,7 +263,18 @@ namespace Hw {
             }
 
             virtual std::uintptr_t getBaseAddress() const override {
-                return mappedAddr;
+                /* Returns first available sector address */
+                std::uint32_t addedSize = 0;
+                for (FlashSector sector = FlashSector0; sector != FlashSectorInvalid;
+                     sector = static_cast<FlashSector>(sector << 1)) {
+                    if (!SectorManager::isSectorActive(sector)) {
+                        addedSize += SectorManager::getSectorSize(sector);
+                    }
+                    else {
+                        break;
+                    }
+                }
+                return mappedAddr + addedSize;
             }
             virtual std::size_t getSize() const override {
                 return SectorManager::getAllSectorsSize();

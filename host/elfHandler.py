@@ -107,6 +107,12 @@ class ElfHandler:
                 loadableSections.append(section)
         return loadableSections
 
+    def getSectionByName(self, name):
+        for section in self.sections:
+            if name == section.getName():
+                return section
+        return None
+
     def getSectionData(self, name):
         for section in self.sections:
             if name is section.getName():

@@ -20,12 +20,17 @@ void App::Bootloader::disablePeripherals() {
     uart.deinitialize();
 }
 
-void App::Bootloader::boot() {
+void App::Bootloader::boot(std::uintptr_t addr) {
     disablePeripherals();
 
-    Hw::uCSystemControlBlock::relocateVectorTable(loader.getTargetMemorySection().getBaseAddress());
+    Hw::uCSystemControlBlock::relocateVectorTable(addr);
 
     // Set Stack pointer and jump to target
     asm("ldr sp, =_estack\r\n"
-        "ldr pc, [%0, #4]\r\n" : : "r" (loader.getTargetMemorySection().getBaseAddress()));
+        "ldr pc, [%0, #4]\r\n" : : "r" (addr));
+}
+
+void App::Bootloader::boot() {
+    std::uintptr_t bootAddress = loader.getBootAddress();
+    boot(bootAddress);
 }

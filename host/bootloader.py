@@ -7,21 +7,43 @@ import time
 import checksum
 from PyQt5 import QtCore
 
+class Memory:
+    def __init__(self, baseAddr, size, flashType):
+        typeList = ['RAM', 'FLASH']
+        self.baseAddr = baseAddr
+        self.size = size
+        self.flashType = typeList[flashType]
+
+    def getAddr(self):
+        return self.baseAddr
+
+    def getSize(self):
+        return self.size
+
+    def getType(self):
+        return self.flashType
+
 commands = {
-        'setBlock' : b'\x00',
-        'getInfo'  : b'\x01',
-        'boot'     : b'\x02'
+        'setBlock'             : b'\x00',
+        'getInfo'              : b'\x01',
+        'boot'                 : b'\x02',
+        'initializeMemory'     : b'\x03'
     }
 
 badChecksumError = b'\x05'
 
-errors = {
+setBlockErrors = {
         b'\x00' : 'No error',
         b'\x01' : 'Block Overflow',
         b'\x02' : 'Memory limit exceeded',
         b'\x03' : 'Start Pointer is invalid',
         b'\x04' : 'Max. Download Size Exceeded',
-        b'\x05' : 'Bad Checksum'
+        b'\x05' : 'Bad Checksum',
+        b'\x06' : 'Unknown Memory'
+    }
+
+bootErrors = {
+        b'\x00' : 'Invalid Boot Address'
     }
 
 def getAck(uart):
@@ -44,20 +66,29 @@ def byteToInt(data):
 def intToByte(data):
     return struct.pack('<B', data)
 
-def printError(error):
-    print "Received error: %s" % errors[error]
+def printError(command, error):
+    if command == b'\x00':
+        print "Received error: %s" % setBlockErrors[error]
+    elif command == b'\x02':
+        print "Received error: %s" % bootErrors[error]
 
 def getInfo(uart):
     if uart is None:
-        return None, None, None
+        return None, []
     uart.write(commands['getInfo'])
     if not getAck(uart):
         print "Error getting information. Nack"
-        return None, None, None
-    memStart = parseInt(uart.read(4))
-    memSpace = parseInt(uart.read(4))
+        return None, []
     maxDownloadSize = parseInt(uart.read(4))
-    return memStart, memSpace, maxDownloadSize
+    numMemorySections = parseInt(uart.read(4))
+    memList = []
+    for i in range(numMemorySections):
+        baseAddr = parseInt(uart.read(4))
+        size = parseInt(uart.read(4))
+        memType = parseInt(uart.read(4))
+        mem = Memory(baseAddr, size, memType)
+        memList.append(mem)
+    return maxDownloadSize, memList
 
 def setBlock(uart, addr, size, data):
     uart.write(commands['setBlock'])
@@ -65,7 +96,7 @@ def setBlock(uart, addr, size, data):
     uart.write(intToBytes(size))
     if not getAck(uart):
         error = uart.read(1)
-        printError(error)
+        printError(b'\x00', error)
         return error
     for i in range(size):
         time.sleep(0.0001)
@@ -75,14 +106,14 @@ def setBlock(uart, addr, size, data):
     uart.write(intToByte(C1))
     if not getAck(uart):
         error = uart.read(1)
-        printError(error)
+        printError(b'\x00', error)
         return error
     return b'\x00'
 
 def loadData(uart, lma, length, data, signal=None):
     if length == 0:
         return
-    memStart, memSpace, maxDSize = getInfo(uart)
+    maxDSize, _ = getInfo(uart)
     
     nChunks = int(math.ceil(float(length) / maxDSize))
     for i in range(nChunks):
@@ -110,9 +141,25 @@ def loadData(uart, lma, length, data, signal=None):
                 progress = 100
             signal.emit(progress)
 
-def boot(uart):
+def boot(uart, bootAddr):
     if uart is None:
         return
     uart.write(commands['boot'])
+    time.sleep(0.001)
+    uart.write(intToBytes(bootAddr))
     if not getAck(uart):
         print "Didn't get Ack!!"
+        error = uart.read(1)
+        printError(b'\x02', error)
+
+def initializeMemory(uart, index):
+    if uart is None:
+        return
+    uart.write(commands['initializeMemory'])
+    time.sleep(0.001)
+    uart.write(intToBytes(index))
+    if not getAck(uart):
+        print "Didn't Ack"
+    #wait until completion
+    if not getAck(uart):
+        print "Didn't get second Ack"

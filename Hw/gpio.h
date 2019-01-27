@@ -23,7 +23,7 @@ namespace Hw {
             const static std::uint32_t AFRH =       base_address + 36;
             const static uCRcc::gpioBankIndex bankId = id;
         };
-        enum Bit {
+        enum Bit : std::uint32_t {
             bit0 = 0,
             bit1,
             bit2,
@@ -102,6 +102,10 @@ namespace Hw {
             } else {
                 reg_access<std::uint32_t, std::uint32_t, addr, offBit>::reg_set();
             }
+        }
+        static bool getValue() {
+            constexpr std::uint32_t addr = port::IDR;
+            return reg_access<std::uint32_t, std::uint32_t, addr, bit>::bit_get() != 0;
         }
         static void enableBank() {
             uCRcc::enableGpioBank(port::bankId);

@@ -11,6 +11,7 @@ public:
     Bootloader(const std::vector<std::reference_wrapper<Hw::IMemory>>& memories);
     bool load();
     void boot();
+    void boot(std::uintptr_t bootAddress);
 private:
     const std::vector<std::reference_wrapper<Hw::IMemory>>& targetMemories;
     Hw::IUart &uart;

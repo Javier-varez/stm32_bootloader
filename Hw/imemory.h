@@ -6,7 +6,7 @@
 namespace Hw {
 class IMemory {
 public:
-    enum memoryType {
+    enum memoryType : std::uint32_t {
         RAM = 0,
         FLASH
     };

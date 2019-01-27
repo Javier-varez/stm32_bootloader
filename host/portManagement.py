@@ -9,9 +9,9 @@ def getPortList():
 			ttyDevs.append(dev)
 	return ttyDevs
 
-def getUart(port):
+def getUart(port, tm = 1):
 	try:
-		return serial.Serial('/dev/%s' % port, 115200, timeout=1)
+		return serial.Serial('/dev/%s' % port, 115200, timeout=tm)
 	except serial.serialutil.SerialException:
 		return None
 

@@ -17,21 +17,22 @@ App::Loader::Loader(const std::vector<std::reference_wrapper<Hw::IMemory>>& memo
                 },
                 {
                     App::cmdContinueBoot,
-                    std::bind(&App::Loader::ContinueBoot, this),
+                    std::bind(&App::Loader::continueBoot, this),
                 },
                 {
-                    App::cmdGetSections,
-                    std::bind(&App::Loader::getSections, this),
-                },
-                {
-                    App::cmdSetTargetSection,
-                    std::bind(&App::Loader::setTargetSection, this),
+                    App::cmdInitializeMemory,
+                    std::bind(&App::Loader::initializeMemory, this),
                 },
             }
         },
     selectedSection(0)
 {
-
+    for (auto &memRef: targetMemories) {
+        const Hw::IMemory &memory = memRef.get();
+        if (memory.getType() == Hw::IMemory::FLASH) {
+            bootAddress = memory.getBaseAddress();
+        }
+    }
 }
 
 bool App::Loader::executeCommand() {
@@ -69,9 +70,27 @@ static std::uint16_t fletcherCRC(const T& data, std::size_t size) {
 bool App::Loader::setBlock() {
     bool done = false;
     SectionHeader header;
+    const Hw::IMemory *targetMemory = nullptr;
 
     header.base_address = uart.receive<std::uint32_t>();
     header.size = uart.receive<std::uint32_t>();
+
+    // search target memory
+    for (auto memRef: targetMemories) {
+        const Hw::IMemory &memory = memRef.get();
+        if (memory.validateAddressRange(header.base_address, header.size)) {
+            targetMemory = &memory;
+            break;
+        }
+    }
+
+    if (targetMemory == nullptr) {
+        uart.send(msgNack);
+        uart.send(setBlockUnknownMemory);
+        return done;
+    }
+
+    targetMemory->initialize();
 
     // Make sure we don't overflow the available memory regions
     std::uint32_t start_ptr = header.base_address;
@@ -84,11 +103,11 @@ bool App::Loader::setBlock() {
         uart.send(msgNack);
         uart.send(setBlockOverflow);
         return done;
-    } else if (start_ptr < getTargetMemorySection().getBaseAddress()) {
+    } else if (start_ptr < targetMemory->getBaseAddress()) {
         uart.send(msgNack);
         uart.send(setBlockStartPointerInvalid);
         return done;
-    } else if (end_ptr > (getTargetMemorySection().getBaseAddress() + getTargetMemorySection().getSize())) {
+    } else if (end_ptr > (targetMemory->getBaseAddress() + targetMemory->getSize())) {
         uart.send(msgNack);
         uart.send(setBlockMemoryLimitExceeded);
         return done;
@@ -109,7 +128,7 @@ bool App::Loader::setBlock() {
     }
 
     // Perform copy into memory
-    getTargetMemorySection().write(start_ptr, dataBuffer.begin(), header.size);
+    targetMemory->write(start_ptr, dataBuffer.begin(), header.size);
 
     uart.send(msgAck);
     return done;
@@ -117,22 +136,7 @@ bool App::Loader::setBlock() {
 
 bool App::Loader::getInfo() {
     uart.send(msgAck);
-    uart.send(getTargetMemorySection().getBaseAddress());
-    uart.send(getTargetMemorySection().getSize());
     uart.send(MAX_DOWNLOAD_SIZE);
-    return false;
-}
-
-bool App::Loader::ContinueBoot() {
-    uart.send(msgAck);
-    // We need to wait for a bit or we will deinit the uart before the Ack is sent.
-    Hw::uCSystemTimer &timer = Hw::factory::getSystemTimer();
-    timer.delay(5);
-    return true;
-}
-
-bool App::Loader::getSections() {
-    uart.send(msgAck);
     uart.send<uint32_t>(targetMemories.size());
 
     for (std::size_t i = 0; i < targetMemories.size(); i++) {
@@ -143,13 +147,49 @@ bool App::Loader::getSections() {
     return false;
 }
 
-bool App::Loader::setTargetSection() {
-    std::uint8_t targetSection = uart.receive<std::uint8_t>();
-    if (targetSection >= targetMemories.size()) {
-        uart.send(msgNack);
-    } else {
-        uart.send(msgAck);
-        selectedSection = targetSection;
+bool App::Loader::verifyBootAddress(std::uintptr_t bootAddress) {
+    for (auto section_ref: targetMemories) {
+        const Hw::IMemory &mem = section_ref.get();
+
+        if (mem.validateAddressRange(bootAddress,1)) {
+            return true;
+        }
     }
+    return false;
+}
+
+std::uintptr_t App::Loader::getBootAddress() const {
+    return bootAddress;
+}
+
+bool App::Loader::continueBoot() {
+    std::uint32_t addr = uart.receive<std::uint32_t>();
+    bool validBootAddress = verifyBootAddress(addr);
+    if (!validBootAddress) {
+        uart.send(msgNack);
+        uart.send(continueBootInvalidAddressError);
+        return false;
+    }
+
+    bootAddress = addr;
+
+    uart.send(msgAck);
+    // We need to wait for a bit or we will deinit the uart before the Ack is sent.
+    Hw::uCSystemTimer &timer = Hw::factory::getSystemTimer();
+    timer.delay(5);
+    return true;
+}
+
+bool App::Loader::initializeMemory() {
+    std::uint32_t index = uart.receive<std::uint32_t>();
+    if (index < targetMemories.size()) {
+        uart.send(msgAck);
+        targetMemories[index].get().initialize();
+        uart.send(msgAck);
+        Hw::gpioI1::setOutput(false);
+    } else {
+        uart.send(msgNack);
+    }
+
     return false;
 }

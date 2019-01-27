@@ -30,9 +30,13 @@ class MainWindow(QMainWindow):
         self.window.PortList.itemSelectionChanged.connect(self.setCurrentPort)
         self.window.getInfoButton.clicked.connect(self.obtainInformation)
         self.window.refreshButton.clicked.connect(self.loadPortList)
+        self.window.memoryList.itemSelectionChanged.connect(self.updateAddressAndLengthFields)
 
         self.loadThread = LoadThread()
         self.infoThread = InfoThread()
+        self.infoThread.feedbackSignal.connect(self.setInformation)
+        self.loadThread.progressSignal.connect(self.updateProgressBar)
+        self.loadThread.feedbackSignal.connect(self.updateFeedbackLabel)
 
         self.window.show()
 
@@ -58,13 +62,32 @@ class MainWindow(QMainWindow):
     def obtainInformation(self):
         if not self.infoThread.isRunning():
             self.infoThread.setPort(self.port)
-            self.infoThread.feedbackSignal.connect(self.setInformation)
             self.infoThread.start()
 
-    def setInformation(self, memStart, memSpace, maxDSize):
-        self.setAddressField(memStart)
-        self.setLengthField(memSpace)
+    def setInformation(self, maxDSize, memories):
+        self.memories = memories
+        self.updateMemoryList()
         self.setMaxDLLenField(maxDSize)
+
+    def updateAddressAndLengthFields(self):
+        row = self.window.memoryList.currentRow()
+        print "row %d" % row
+        if (row != -1) and (row < len(self.memories)):
+            self.setAddressField(self.memories[row].getAddr())
+            self.setLengthField(self.memories[row].getSize())
+        else:
+            self.setAddressField(None)
+            self.setLengthField(None)
+
+    def updateMemoryList(self):
+        self.window.memoryList.clear()
+        for mem in self.memories:
+            item = QListWidgetItem(mem.getType())
+            self.window.memoryList.addItem(item)
+
+        #set the first element as selected
+        self.window.memoryList.setCurrentRow(0)
+        self.updateAddressAndLengthFields()
 
 
     def setAddressField(self, data):
@@ -80,7 +103,7 @@ class MainWindow(QMainWindow):
         	self.window.LengthTextField.setText('')
 
     def setMaxDLLenField(self, data):
-        if data is not None:
+        if (data is not None) and (data != 0):
 	    self.window.MaxDLTextField.setText('0x%08x' % data)
         else:
             self.window.MaxDLTextField.setText('')
@@ -90,8 +113,6 @@ class MainWindow(QMainWindow):
             # Start job
             self.loadThread.setPort(self.port)
             self.loadThread.setFileName(self.window.ExeTextField.text())
-            self.loadThread.progressSignal.connect(self.updateProgressBar)
-            self.loadThread.feedbackSignal.connect(self.updateFeedbackLabel)
             self.loadThread.start()
 
     def updateProgressBar(self, progress):
@@ -101,7 +122,7 @@ class MainWindow(QMainWindow):
         self.window.feedbackLabel.setText(feedbackStr)
 
 class InfoThread(QtCore.QThread):
-    feedbackSignal = QtCore.pyqtSignal(int, int, int)
+    feedbackSignal = QtCore.pyqtSignal(int, list)
 
     def __init__(self):
         super(InfoThread, self).__init__()
@@ -110,13 +131,14 @@ class InfoThread(QtCore.QThread):
         self.port = port
 
     def run(self):
-        self.feedbackSignal.emit(None, None, None)
+        self.feedbackSignal.emit(0, [])
         uart = portManagement.getUart(self.port)
         if uart == None:
             return
-        memStart, memSpace, maxDSize = bootloader.getInfo(uart)
+        maxDSize, memories = bootloader.getInfo(uart)
+        if maxDSize is not None:
+            self.feedbackSignal.emit(maxDSize, memories)
         uart.close()
-        self.feedbackSignal.emit(memStart, memSpace, maxDSize)
 
 class LoadThread(QtCore.QThread):
     progressSignal = QtCore.pyqtSignal(int)
@@ -147,6 +169,37 @@ class LoadThread(QtCore.QThread):
         currentProgress = int((sentSize*100) / totalSize)
         self.progressSignal.emit(currentProgress)
 
+    def findBootAddress(self):
+        self.bootAddr = 0
+        section = self.elfHandler.getSectionByName('.isr_vector')
+        if section is not None:
+            print "using isr_vector addr"
+            self.bootAddr = section.getLMA()
+        else:
+            section = self.elfHandler.getSectionByName('.text')
+            if section is not None:
+                self.bootAddr = section.getLMA()
+        print "Boot Addr = 0x%08x" % self.bootAddr
+
+    def isMemoryUsed(self, memory):
+        memStart = memory.getAddr()
+        memEnd = memStart + memory.getSize()
+        for section in self.sections:
+            lma = section.getLMA()
+            if (lma >= memStart) and (lma < memEnd):
+                return True
+        return False
+
+    def initializeMemories(self):
+        #uart must have larger timeout, since it is a long operation
+        uart = portManagement.getUart(self.port, 10)
+        _, availableMemories = bootloader.getInfo(uart)
+        for mem in availableMemories:
+            if self.isMemoryUsed(mem):
+                print "Initializing %s" % mem.getType()
+                self.feedbackSignal.emit("Initializing %s" % mem.getType())
+                bootloader.initializeMemory(uart, availableMemories.index(mem))
+                
     def run(self):
         self.progressSignal.emit(0)
         self.feedbackSignal.emit('')
@@ -157,14 +210,16 @@ class LoadThread(QtCore.QThread):
         if uart == None:
             self.feedbackSignal.emit("Couldn't find port %s" % self.port)
             return
-        elfHandler = ElfHandler(self.filename)
-        self.sections = elfHandler.getLoadableSections()
+        self.elfHandler = ElfHandler(self.filename)
+        self.sections = self.elfHandler.getLoadableSections()
+        self.initializeMemories()
+        self.findBootAddress()
         for i in range(len(self.sections)):
             self.feedbackSignal.emit("Loading section %s" % self.sections[i].getName())
-            data = elfHandler.getSectionData(self.sections[i].getName())
+            data = self.elfHandler.getSectionData(self.sections[i].getName())
             self.currentSection = i
             bootloader.loadData(uart, self.sections[i].getLMA(), self.sections[i].getSize(), data, self.internalProgressSignal)
-        bootloader.boot(uart)
+        bootloader.boot(uart, self.bootAddr)
         self.progressSignal.emit(100)
         self.feedbackSignal.emit("Done!")
         uart.close()

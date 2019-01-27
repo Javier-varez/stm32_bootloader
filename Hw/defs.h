@@ -25,11 +25,12 @@ using GpioBankB = Hw::GpioConfig::Bank<GPIOB_BASE, Hw::uCRcc::gpioBankIndex::B>;
 using GpioBankC = Hw::GpioConfig::Bank<GPIOC_BASE, Hw::uCRcc::gpioBankIndex::C>;
 using GpioBankI = Hw::GpioConfig::Bank<GPIOI_BASE, Hw::uCRcc::gpioBankIndex::I>;
 
-using gpioA9 = Hw::Gpio<GpioBankA, Hw::GpioConfig::bit9>;
-using gpioB7 = Hw::Gpio<GpioBankB, Hw::GpioConfig::bit7>;
-using gpioI1 = Hw::Gpio<GpioBankI, Hw::GpioConfig::bit1>;
-using gpioC6 = Hw::Gpio<GpioBankC, Hw::GpioConfig::bit6>;
-using gpioC7 = Hw::Gpio<GpioBankC, Hw::GpioConfig::bit7>;
+using gpioA9  = Hw::Gpio<GpioBankA, Hw::GpioConfig::bit9>;
+using gpioB7  = Hw::Gpio<GpioBankB, Hw::GpioConfig::bit7>;
+using gpioI1  = Hw::Gpio<GpioBankI, Hw::GpioConfig::bit1>;
+using gpioC6  = Hw::Gpio<GpioBankC, Hw::GpioConfig::bit6>;
+using gpioC7  = Hw::Gpio<GpioBankC, Hw::GpioConfig::bit7>;
+using gpioI11 = Hw::Gpio<GpioBankI, Hw::GpioConfig::bit11>;
 
 using Uart1RegBase = Hw::UartRegisters<USART1_BASE, Hw::uCRcc::uartIndex::Uart1>;
 using Uart6RegBase = Hw::UartRegisters<USART6_BASE, Hw::uCRcc::uartIndex::Uart6>;
